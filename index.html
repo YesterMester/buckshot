@@ -9,18 +9,68 @@
     <link rel="stylesheet" href="style.css">
     <link id="-gd-engine-icon" rel="icon" type="image/png" href="buckshot-roulette.icon.png" />
     <link rel="apple-touch-icon" href="buckshot-roulette.apple-touch-icon.png" />
+
+    <style>
+        /* This styles the new progress bar */
+        #main-loading-bar {
+            width: 50%;
+            height: 25px;
+            margin-top: 15px;
+            appearance: none;
+            border: 1px solid #fff;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        /* Style the background (the "track") */
+        #main-loading-bar::-webkit-progress-bar {
+            background-color: #333;
+        }
+
+        /* Style the filled-in part (the "value") */
+        #main-loading-bar::-webkit-progress-value {
+            background-color: #b00000; /* Red to match game theme */
+        }
+
+        /* Firefox specific styling */
+        #main-loading-bar::-moz-progress-bar {
+            background-color: #b00000;
+        }
+
+        /* This styles the error notice if it appears */
+        #status-notice {
+            background-color: #5b3943;
+            border-radius: 0.5rem;
+            border: 1px solid #9b3943;
+            color: #e0e0e0;
+            font-family: 'Noto Sans', 'Droid Sans', Arial, sans-serif;
+            line-height: 1.3;
+            margin: 20px auto;
+            width: 80%;
+            overflow: hidden;
+            padding: 1rem;
+            text-align: center;
+        }
+    </style>
 </head>
 
 <body>
     <script src="main.js"></script>
-    <div id="loading-text" style="color: white; font-family: cursive; font-size: 48px; text-align: center; margin-top: 20px;">LOADING...</div>
-    <canvas id="canvas"> Your browser does not support the canvas tag. </canvas>
+
+    <div id="loading-container" style="color: white; font-family: cursive; font-size: 48px; text-align: center; margin-top: 20px;">
+        <div id="loading-text">LOADING...</div>
+        <progress id="main-loading-bar" value="0"></progress>
+        </div>
+
+    <canvas id="canvas" style="display: none;"> Your browser does not support the canvas tag. </canvas>
     <noscript> Your browser does not support JavaScript. </noscript>
-    <div id="status">
+    
+    <div id="status" style="display: none;">
         <img id="status-splash" class="show-image--true fullsize--true use-filter--true" src="buckshot-roulette.png" alt="">
         <progress id="status-progress"></progress>
         <div id="status-notice"></div>
     </div>
+    
     <script src="buckshot-roulette.js"></script>
     <script>
         const GODOT_CONFIG = {
@@ -40,11 +90,20 @@
         const engine = new Engine(GODOT_CONFIG);
 
         function run() {
+            // --- MODIFIED: Get new loading elements ---
+            const loadingContainer = document.getElementById('loading-container');
             const loadingText = document.getElementById('loading-text');
+            const mainLoadingBar = document.getElementById('main-loading-bar');
+            const canvas = document.getElementById('canvas');
+
+            // --- Original elements ---
             const statusOverlay = document.getElementById('status');
             const statusProgress = document.getElementById('status-progress');
             const statusNotice = document.getElementById('status-notice');
-            loadingText.remove();
+            
+            // --- We don't need the original splash screen overlay ---
+            statusOverlay.remove();
+            
             let initializing = true;
             let statusMode = '';
 
@@ -53,13 +112,22 @@
                     return;
                 }
                 if (mode === 'hidden') {
-                    statusOverlay.remove();
+                    // When loading is done, remove our loading container
+                    loadingContainer.remove();
+                    // And show the canvas
+                    canvas.style.display = 'block';
                     initializing = false;
                     return;
                 }
-                statusOverlay.style.visibility = 'visible';
-                statusProgress.style.display = mode === 'progress' ? 'block' : 'none';
-                statusNotice.style.display = mode === 'notice' ? 'block' : 'none';
+                // --- MODIFIED: Show errors inside our new container ---
+                if (mode === 'notice') {
+                    loadingContainer.appendChild(statusNotice); // Move notice to our container
+                    statusNotice.style.display = 'block';
+                    mainLoadingBar.style.display = 'none'; // Hide bar on error
+                    loadingText.style.display = 'none'; // Hide "LOADING..." on error
+                } else {
+                    statusNotice.style.display = 'none';
+                }
                 statusMode = mode;
             }
 
@@ -90,6 +158,7 @@
                 threads: GODOT_THREADS_ENABLED,
             });
             if (missing.length !== 0) {
+                // (Error handling logic remains the same)
                 if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
                     let serviceWorkerRegistrationPromise;
                     try {
@@ -97,7 +166,6 @@
                     } catch (err) {
                         serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
                     }
-                    // There's a chance that installing the service worker would fix the issue
                     Promise.race([
                         serviceWorkerRegistrationPromise.then((registration) => {
                             if (registration != null) {
@@ -105,35 +173,35 @@
                             }
                             return registration;
                         }).then(() => engine.installServiceWorker()),
-                        // For some reason, `getRegistration()` can stall
                         new Promise((resolve) => {
                             setTimeout(() => resolve(), 2000);
                         }),
                     ]).then(() => {
-                        // Reload if there was no error.
                         window.location.reload();
                     }).catch((err) => {
                         console.error('Error while registering service worker:', err);
+                        const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+                        displayFailureNotice(missingMsg + missing.join('\n'));
                     });
                 } else {
-                    // Display the message as usual
                     const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
                     displayFailureNotice(missingMsg + missing.join('\n'));
                 }
             } else {
-                setStatusMode('progress');
+                // We're already in 'progress' mode, no setStatusMode call needed
                 engine.startGame({
                     'onProgress': function (current, total) {
+                        // --- MODIFIED: Update our new progress bar ---
                         if (current > 0 && total > 0) {
-                            statusProgress.value = current;
-                            statusProgress.max = total;
+                            mainLoadingBar.value = current;
+                            mainLoadingBar.max = total;
                         } else {
-                            statusProgress.removeAttribute('value');
-                            statusProgress.removeAttribute('max');
+                            mainLoadingBar.removeAttribute('value');
+                            mainLoadingBar.removeAttribute('max');
                         }
                     },
                 }).then(() => {
-                    setStatusMode('hidden');
+                    setStatusMode('hidden'); // This will hide our container and show the game
                 }, displayFailureNotice);
             }
         };

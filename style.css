@@ -21,9 +21,9 @@ body {
     outline: none;
 }
 
+/* MODIFIED: Removed #status-progress from this group */
 #status,
-#status-splash,
-#status-progress {
+#status-splash {
     position: absolute;
     left: 0;
     right: 0;
@@ -42,12 +42,14 @@ body {
     justify-content: center;
     align-items: center;
     visibility: hidden;
+    z-index: 100; /* Added z-index to ensure it's on top */
 }
 
 #status-splash {
     max-height: 100%;
     max-width: 100%;
     margin: auto;
+    margin-bottom: 20px; /* ADDED: Creates space for the progress bar below */
 }
 
 #status-splash.show-image--false {
@@ -69,12 +71,35 @@ body {
     display: none;
 }
 
+/* UPDATED: Replaced old styles with visible loading bar styles */
 #status-progress {
-    bottom: 10%;
     width: 50%;
-    margin: 0 auto;
+    height: 25px;
+    appearance: none; /* Remove default OS styling */
+    border: 1px solid #fff;
+    border-radius: 5px;
+    overflow: hidden;
+    /* Removed absolute positioning to work with flex container */
 }
 
+/* ADDED: Styles for the progress bar track */
+#status-progress::-webkit-progress-bar {
+    background-color: #333;
+}
+
+/* ADDED: Styles for the progress bar value (fill) */
+#status-progress::-webkit-progress-value {
+    background-color: #b00000; /* Red to match game theme */
+    transition: width 0.1s linear;
+}
+
+/* ADDED: Firefox specific styling for the fill */
+#status-progress::-moz-progress-bar {
+    background-color: #b00000;
+    transition: width 0.1s linear;
+}
+
+/* KEPT: Your original error notice styles are great */
 #status-notice {
     background-color: #5b3943;
     border-radius: 0.5rem;
